@@ -3,7 +3,7 @@
  *
  * Description: This file contains the register definitions
  *              for interacting with the XENSIV™ PAS CO2 sensor.
- *
+ * 
  * Source attribution: Adapted from the official Infineon XENSIV PAS CO2
  * register map and documentation. All credits remain with Infineon.
  * This driver was created for learning and exploration purposes.

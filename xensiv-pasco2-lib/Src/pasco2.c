@@ -1,11 +1,10 @@
 /*
  * pasco2.c
  *
- * I2C driver implementation for Infineon XENSIV PAS CO2 sensor.
- *
  *  Created on: Nov 10, 2024
  *      Author: GeeberuBasav
  */
+
 
 #include "pasco2.h"
 
@@ -13,9 +12,8 @@ HAL_StatusTypeDef PASCO2_I2C_Init(PASCO2 *dev,I2C_HandleTypeDef *i2cHandler)
 {
 	if(dev==NULL || i2cHandler==NULL)
 		return HAL_ERROR;
-	dev->commPeripheral=(void *)i2cHandler;
+	dev->I2CHandle=i2cHandler;
 	dev->addr=(uint8_t)XENSIV_PASCO2_DEV_ADDR;
-	dev->co2ppm=0;
 	return HAL_OK;
 }
 HAL_StatusTypeDef PASCO2_Get_Reg(const PASCO2 *dev,uint8_t reg,uint8_t *data)
@@ -23,7 +21,7 @@ HAL_StatusTypeDef PASCO2_Get_Reg(const PASCO2 *dev,uint8_t reg,uint8_t *data)
 	if(dev==NULL||data==NULL)
 		return HAL_ERROR;
 	else
-		return HAL_I2C_Mem_Read(dev->commPeripheral,
+		return HAL_I2C_Mem_Read(dev->I2CHandle,
 								(uint8_t)((dev->addr)<<1),
 								(uint8_t)reg,
 								I2C_MEMADD_SIZE_8BIT,
@@ -37,7 +35,7 @@ HAL_StatusTypeDef PASCO2_Set_Reg(const PASCO2 *dev,uint8_t reg,uint8_t *data)
 	if(dev==NULL||data==NULL)
 			return HAL_ERROR;
 	else
-		return HAL_I2C_Mem_Write(dev->commPeripheral,
+		return HAL_I2C_Mem_Write(dev->I2CHandle,
 								(uint8_t)(dev->addr<<1),
 								(uint8_t)reg,
 								I2C_MEMADD_SIZE_8BIT,
@@ -51,7 +49,7 @@ HAL_StatusTypeDef PASCO2_Get_Regs(const PASCO2 *dev,uint8_t reg,uint8_t *data)
 	if(dev==NULL||data==NULL)
 		return HAL_ERROR;
 	else
-		return HAL_I2C_Mem_Read(dev->commPeripheral,
+		return HAL_I2C_Mem_Read(dev->I2CHandle,
 								(uint8_t)(dev->addr<<1),
 								(uint8_t)reg,
 								I2C_MEMADD_SIZE_8BIT,
@@ -65,7 +63,7 @@ HAL_StatusTypeDef PASCO2_Set_Regs(const PASCO2 *dev,uint8_t reg,uint8_t *data)
 	if(dev==NULL||data==NULL)
 			return HAL_ERROR;
 	else
-		return HAL_I2C_Mem_Write(dev->commPeripheral,
+		return HAL_I2C_Mem_Write(dev->I2CHandle,
 								(uint8_t)(dev->addr<<1),
 								(uint8_t)reg,
 								I2C_MEMADD_SIZE_8BIT,
@@ -79,7 +77,7 @@ HAL_StatusTypeDef PASCO2_Available(const PASCO2 *dev,uint8_t *data)
 		return HAL_ERROR;
 	else
 	{
-		if( HAL_I2C_IsDeviceReady(dev->commPeripheral, (uint16_t)(dev->addr<<1), 3, 5)==HAL_OK)
+		if( HAL_I2C_IsDeviceReady(dev->I2CHandle, (uint16_t)(dev->addr<<1), 3, 5)==HAL_OK)
 		{
 			return PASCO2_Get_Reg(dev, XENSIV_PASCO2_REG_PROD_ID, data);
 		}
@@ -88,14 +86,14 @@ HAL_StatusTypeDef PASCO2_Available(const PASCO2 *dev,uint8_t *data)
 	}
 
 }
-HAL_StatusTypeDef PASCO2_ppm(PASCO2 *dev)
+HAL_StatusTypeDef PASCO2_Get_CO2_Levels(PASCO2 *dev,uint16_t *value)
 {
 	if(dev==NULL)
 		return HAL_ERROR;
 	else
 	{
 		xensiv_pasco2_meas_status_t meas_sts;
-		if(PASCO2_Get_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_MEAS_STS,&(meas_sts.u))!=HAL_OK)
+		if(PASCO2_Get_MeasurementStatus(dev,&meas_sts)!=HAL_OK)
 			return HAL_ERROR;;
 		if((meas_sts.u & XENSIV_PASCO2_REG_MEAS_STS_DRDY_MSK)!=0x00)
 		{
@@ -103,12 +101,12 @@ HAL_StatusTypeDef PASCO2_ppm(PASCO2 *dev)
 			if(PASCO2_Get_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_CO2PPM_H,&temp_data)!=HAL_OK)
 				return HAL_ERROR;
 			else
-				dev->co2ppm=temp_data;
+				(*value)=temp_data;
 			if(PASCO2_Get_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_CO2PPM_L,&temp_data)!=HAL_OK)
 				return HAL_ERROR;
 			else
 			{
-				dev->co2ppm=(dev->co2ppm<<8)|temp_data;
+				*value =(uint16_t)((( *value)<<8)|temp_data);
 				return HAL_OK;
 			}
 
@@ -119,27 +117,7 @@ HAL_StatusTypeDef PASCO2_ppm(PASCO2 *dev)
 
 	}
 }
-HAL_StatusTypeDef PASCO2_ppm2(PASCO2 *dev)
-{
-	uint16_t co2_data=0;
-	xensiv_pasco2_meas_status_t meas_sts;
-	if(PASCO2_Get_MeasuremetnStatus(dev, (uint8_t*)&meas_sts)!=HAL_OK)
-		return HAL_ERROR;
-	if(meas_sts.b.drdy==1)
-	{
-		if(PASCO2_Get_Regs(dev, (uint8_t)XENSIV_PASCO2_REG_CO2PPM_H, (uint8_t *)&co2_data)!=HAL_OK)
-				return HAL_ERROR;
-			else
-			{
-				//dev->co2ppm=((co2_data >> 8)&0xFF)|((co2_data & 0xFF) << 8);
-				dev->co2ppm=reverse_ByteOrder(co2_data);
-				return HAL_OK;
-			}
-	}
-	else
-		return HAL_ERROR;
 
-}
 
 HAL_StatusTypeDef PASCO2_Reset(const PASCO2 *dev,xensiv_pasco2_cmd_t cmd)
 {
@@ -229,14 +207,14 @@ HAL_StatusTypeDef PASCO2_Get_Pressure_ref(const PASCO2 *dev,uint16_t *val)
 
 }
 
-HAL_StatusTypeDef PASCO2_Get_MeasuremetnStatus(const PASCO2 *dev,uint8_t *val)
+HAL_StatusTypeDef PASCO2_Get_MeasurementStatus(const PASCO2 *dev,xensiv_pasco2_meas_status_t *val)
 {
-	return PASCO2_Get_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_MEAS_STS,val);
+	return PASCO2_Get_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_MEAS_STS,(uint8_t*)val);
 }
 
-HAL_StatusTypeDef PASCO2_Set_MeasuremetnStatus(const PASCO2 *dev,uint8_t *val)
+HAL_StatusTypeDef PASCO2_Set_MeasurementStatus(const PASCO2 *dev,xensiv_pasco2_meas_status_t *val)
 {
-	return PASCO2_Set_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_MEAS_STS,val);
+	return PASCO2_Set_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_MEAS_STS,(uint8_t*)val);
 }
 HAL_StatusTypeDef PASCO2_Start_SingleShotMode(const PASCO2 *dev)
 {
@@ -329,84 +307,30 @@ HAL_StatusTypeDef PASCO2_Get_Measurement_Rate(const PASCO2 *dev, uint16_t *meas_
 
 HAL_StatusTypeDef PASCO2_ClearForecedCompensation(const PASCO2 *dev)
 {
-	if(dev==NULL)
-		return HAL_ERROR;
-	else
-		return PASCO2_cmd(dev,XENSIV_PASCO2_CMD_RESET_FCS);
-
-
 return HAL_OK;
 }
-HAL_StatusTypeDef PASCO2_PerformForecedCompensation(const PASCO2 *dev,uint16_t val)
+HAL_StatusTypeDef PASCO2_PerformForecedCompensation(const PASCO2 *dev)
 {
-	/*Set IDLE Mode*/
-	HAL_StatusTypeDef ret;
-	xensiv_pasco2_measurement_config_t measCfg;
-	if(PASCO2_Get_Measurement_Config(dev, &measCfg)==HAL_OK)
-	{
-		measCfg.b.op_mode=XENSIV_PASCO2_OP_MODE_IDLE;
-		if(PASCO2_Set_Measurement_Config(dev, &measCfg)==HAL_OK)
-		{
-			/*Configure Measurement rate to 10s*/
-			if(PASCO2_Set_Measurement_Rate(dev, (uint16_t)XENSIV_PASCO2_MEAS_RATE_FCS)==HAL_OK)
-			{
-				/*Load Calibration register with compensation value*/
-				if(PASCO2_Set_Calibration_ref(dev,val)==HAL_OK)
-				{
-					/*Set BOC mode to FCS & OPMode to Contionous Mode*/
-					if(PASCO2_Get_Measurement_Config(dev, &measCfg)==HAL_OK)
-					{
-						measCfg.b.op_mode=XENSIV_PASCO2_OP_MODE_CONTINUOUS;
-						measCfg.b.boc_cfg=XENSIV_PASCO2_BOC_CFG_FORCED;
-						if(PASCO2_Set_Measurement_Config(dev, &measCfg)==HAL_OK)
-						{
-							/*Wait until BOC Mode switch back to ABOC Mode*/
-							do
-							{
-								ret= PASCO2_Get_Measurement_Config(dev, &measCfg);
-
-
-							}while((ret!=HAL_OK)||XENSIV_PASCO2_BOC_CFG_FORCED==measCfg.b.boc_cfg);
-							if(ret==HAL_ERROR)
-								return HAL_ERROR;
-							/*Push to IDLE Mode*/
-							measCfg.b.op_mode=XENSIV_PASCO2_OP_MODE_IDLE;
-							if(PASCO2_Set_Measurement_Config(dev, &measCfg)==HAL_OK)
-							{
-								/*Save the calibration SENS_RST=0xCF*/
-								if(PASCO2_cmd(dev, XENSIV_PASCO2_CMD_SAVE_FCS_CALIB_OFFSET)!=HAL_OK)
-									return HAL_ERROR;
-								else
-									return HAL_OK;
-							}
-
-						}
-					}
-				}
-			}
-		}
-	}
+	return HAL_OK;
 }
 uint16_t reverse_ByteOrder(uint16_t val)
 {
 	return ((val&0xFF)<<8)|((val&0xFF00)>>8);
 }
 
-HAL_StatusTypeDef PASCO2_cmd(const PASCO2 * dev, xensiv_pasco2_cmd_t cmd)
+HAL_StatusTypeDef PASCO2_int_cfg(const PASCO2 *dev,const PASCO2_INT_PIN_GPIO_cfg_t *gpio_int_cfg_s,const xensiv_pasco2_interrupt_config_t *pasco2_int_cfg_s)
 {
-	if(dev==NULL)
+	if((dev==NULL)||(gpio_int_cfg_s == NULL )||(pasco2_int_cfg_s == NULL))
 		return HAL_ERROR;
-	return PASCO2_Set_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_SENS_RST, (uint8_t*)&cmd);
-}
+	HAL_GPIO_Init(gpio_int_cfg_s->portName, gpio_int_cfg_s->gpioInit);
 
-HAL_StatusTypeDef PASCO2_Set_Calibration_ref(const PASCO2 *dev,uint16_t val)
-{
-	if(dev==NULL)
+	NVIC_SetPriority ((gpio_int_cfg_s->IRQ_Num), (gpio_int_cfg_s->IRQ_Priority));  // Set Priority
+
+	NVIC_EnableIRQ ((gpio_int_cfg_s->IRQ_Num));  // Enable Interrupt
+
+	if(PASCO2_Set_Reg(dev, (uint8_t)XENSIV_PASCO2_REG_INT_CFG, (uint8_t*)&(pasco2_int_cfg_s->u))!=HAL_OK)
+	{
 		return HAL_ERROR;
-	val=reverse_ByteOrder(val);
-	if(PASCO2_Set_Regs(dev,(uint8_t)XENSIV_PASCO2_REG_CALIB_REF_H,(uint8_t *)&val)!=HAL_OK)
-		return HAL_ERROR;
-	else
+	}
 		return HAL_OK;
-
 }
