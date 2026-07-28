@@ -2,7 +2,7 @@
  * pasco2.h
  *
  *  Created on: Nov 10, 2024
- *      Author: GeeberuBasav
+ *      Author: Yashas
  */
 
 #ifndef INC_PASCO2_H_
