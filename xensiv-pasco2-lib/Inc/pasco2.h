@@ -1,8 +1,6 @@
 /*
  * pasco2.h
  *
- * Driver interface for Infineon XENSIV PAS CO2 sensor.
- *
  *  Created on: Nov 10, 2024
  *      Author: GeeberuBasav
  */
@@ -10,38 +8,60 @@
 #ifndef INC_PASCO2_H_
 #define INC_PASCO2_H_
 
+/**
+ * @file pasco2.h
+ * @brief Infineon XENSIV PASCO2 CO2 sensor driver interface.
+ *
+ * This header defines the PASCO2 device context and the sensor API for use
+ * with an STM32 HAL-based I2C bus. The driver supports device commands,
+ * measurement configuration, interrupt configuration, and read/write access
+ * to the sensor registers.
+ */
 
 #include "xensiv_pasco2_regs.h"
 #include "stm32f4xx_hal.h"
 
-typedef struct{
-	I2C_HandleTypeDef * I2CHandle;
-	uint16_t co2ppm;
-	uint8_t addr;
-}PASCO2;
+/**
+ * @brief XENSIV PASCO2 device context.
+ *
+ * The application must provide a valid I2C handle and may use the default
+ * 7-bit I2C device address defined by XENSIV_PASCO2_DEV_ADDR.
+ */
+typedef struct
+{
+    I2C_HandleTypeDef *I2CHandle; /**< HAL I2C handle used for sensor communication */
+    uint8_t addr;                 /**< 7-bit I2C device address */
+} PASCO2;
+
 /** I2C address of the XENSIV™ PASCO2 sensor */
 #define XENSIV_PASCO2_DEV_ADDR 0x28
 
+/** Communication test value returned by the sensor during a device check. */
 #define XENSIV_PASCO2_COMM_TEST_VAL             (0xA5U)
 
+/** Delay after issuing a soft reset command, in milliseconds. */
 #define XENSIV_PASCO2_SOFT_RESET_DELAY_MS       (2000U)
 
-#define XENSIV_PASCO2_REG_PROD_ID_VAL			      (0x4FU)
+/** Expected product ID value for the XENSIV PASCO2 sensor. */
+#define XENSIV_PASCO2_REG_PROD_ID_VAL           (0x4FU)
 
-/** Minimum allowed measurement rate */
+/** Minimum allowed measurement rate in seconds for continuous mode. */
 #define XENSIV_PASCO2_MEAS_RATE_MIN             (5U)
 
-/** Maximum allowed measurement rate */
+/** Maximum allowed measurement rate in seconds for continuous mode. */
 #define XENSIV_PASCO2_MEAS_RATE_MAX             (4095U)
-
-#define XENSIV_PASCO2_MEAS_RATE_FCS 10
 
 
 
 
 /********************************* Type definitions **************************************/
 
-/** Enum defining the different device commands */
+/**
+ * @brief Device commands supported by the XENSIV PASCO2 sensor.
+ *
+ * Commands are written to the sensor command register to perform
+ * operations such as reset, forced calibration, and offset context reset.
+ */
 typedef enum
 {
     XENSIV_PASCO2_CMD_SOFT_RESET = 0xA3U,               /**< Soft reset the sensor */
@@ -50,7 +70,13 @@ typedef enum
     XENSIV_PASCO2_CMD_RESET_FCS = 0xFCU,                /**< Resets the forced calibration correction factor */
 } xensiv_pasco2_cmd_t;
 
-/** Enum defining the different device operating modes */
+/**
+ * @brief PASCO2 device operating modes.
+ *
+ * - IDLE: sensor remains inactive.
+ * - SINGLE: one-shot measurement followed by return to IDLE.
+ * - CONTINUOUS: periodic measurements with programmable interval.
+ */
 typedef enum
 {
     XENSIV_PASCO2_OP_MODE_IDLE = 0U,                    /**< The device does not perform any CO2 concentration measurement */
@@ -60,7 +86,11 @@ typedef enum
                                                              up automatically for the next measurement sequence. The measurement period can be programmed from 5 seconds to 4095 seconds. */
 } xensiv_pasco2_op_mode_t;
 
-/** Enum defining the different device baseline offset compensation (BOC) modes */
+/**
+ * @brief Baseline offset compensation (BOC) modes for the PASCO2 sensor.
+ *
+ * BOC can be disabled, performed automatically, or forced by command.
+ */
 typedef enum
 {
     XENSIV_PASCO2_BOC_CFG_DISABLE = 0U,                 /**< No offset compensation occurs */
@@ -68,21 +98,36 @@ typedef enum
     XENSIV_PASCO2_BOC_CFG_FORCED = 2U                   /**< Forced compensation */
 } xensiv_pasco2_boc_cfg_t;
 
-/** Enum defining the PWM mode configuration */
+/**
+ * @brief PWM output mode selection.
+ *
+ * The PASCO2 sensor can generate either a single PWM pulse or a pulse train
+ * on the PWM output pin when PWM output is enabled.
+ */
 typedef enum
 {
     XENSIV_PASCO2_PWM_MODE_SINGLE_PULSE = 0U,           /**< PWM single-pulse */
     XENSIV_PASCO2_PWM_MODE_TRAIN_PULSE = 1U             /**< PWM pulse-train mode */
 } xensiv_pasco2_pwm_mode_t;
 
-/** Enum defining different interrupt active levels */
+/**
+ * @brief Interrupt active-level configuration for the PASCO2 INT pin.
+ *
+ * Select whether INT is active-high or active-low when used as the sensor
+ * interrupt output.
+ */
 typedef enum
 {
     XENSIV_PASCO2_INTERRUPT_TYPE_LOW_ACTIVE = 0U,       /**< Pin INT is configured as push-pull and is active LOW */
     XENSIV_PASCO2_INTERRUPT_TYPE_HIGH_ACTIVE = 1U       /**< Pin INT is configured as push-pull and is active HIGH */
 } xensiv_pasco2_interrupt_type_t;
 
-/** Enum defining different pin interrupt functions */
+/**
+ * @brief Interrupt function selection for the PASCO2 INT pin.
+ *
+ * The INT pin can signal no event, alarm threshold violations, data-ready,
+ * busy state, or early measurement start notification in continuous mode.
+ */
 typedef enum
 {
     XENSIV_PASCO2_INTERRUPT_FUNCTION_NONE = 0U,         /**< Pin INT is inactive */
@@ -93,14 +138,24 @@ typedef enum
                                                              @note This function is available only in continuous mode */
 } xensiv_pasco2_interrupt_function_t;
 
-/** Enum defining whether an alarm is issued in the case of a lower or higher threshold violation */
+/**
+ * @brief Alarm direction used for INT pin threshold violation reporting.
+ *
+ * - HIGH_TO_LOW: indicates a falling CO2 concentration event.
+ * - LOW_TO_HIGH: indicates a rising CO2 concentration event.
+ */
 typedef enum
 {
     XENSIV_PASCO2_ALARM_TYPE_HIGH_TO_LOW = 0U,          /**< CO2 ppm value falling below the alarm threshold */
     XENSIV_PASCO2_ALARM_TYPE_LOW_TO_HIGH = 1U           /**< CO2 ppm value rising above the alarm threshold */
 } xensiv_pasco2_alarm_type_t;
 
-/** Structure of the sensor's product and revision ID register (PROD_ID) */
+/**
+ * @brief Product and firmware revision information returned by the PROD_ID register.
+ *
+ * The sensor reports an 8-bit identification value that includes product and
+ * revision fields.
+ */
 typedef union
 {
   struct
@@ -111,14 +166,19 @@ typedef union
   uint8_t u;                                            /*!< Type used for byte access */
 } xensiv_pasco2_id_t;
 
-/** Structure of the sensor's status register (SENS_STS) */
+/**
+ * @brief Status register representation for the PASCO2 sensor.
+ *
+ * The status register provides error flags, power and temperature range status,
+ * PWM output status, and sensor readiness information.
+ */
 typedef union
 {
   struct
   {
     uint32_t :3;
     uint32_t iccerr:1;                                  /*!< Communication error notification bit.
-                                                             Indicates whether an invalid command has been received by the serial communication interface*/
+                                                             Indicates whether an invalid command has been received by the serial communication interface */
     uint32_t orvs:1;                                    /*!< Out-of-range VDD12V error bit */
     uint32_t ortmp:1;                                   /*!< Out-of-range temperature error bit */
     uint32_t pwm_dis_st:1;                              /*!< PWM_DIS pin status */
@@ -127,7 +187,12 @@ typedef union
   uint8_t u;                                            /*!< Type used for byte access */
 } xensiv_pasco2_status_t;
 
-/** Structure of the sensor's measurement configuration register (MEAS_CFG) */
+/**
+ * @brief Measurement configuration register fields for the PASCO2 sensor.
+ *
+ * This register controls operating mode, baseline offset compensation,
+ * PWM output mode, and PWM enable state.
+ */
 typedef union
 {
   struct
@@ -141,7 +206,12 @@ typedef union
   uint8_t u;                                            /*!< Type used for byte access */
 } xensiv_pasco2_measurement_config_t;
 
-/** Structure of the sensor's interrupt configuration register (INT_CFG) */
+/**
+ * @brief Interrupt configuration register fields for the PASCO2 sensor.
+ *
+ * This register configures threshold alarm behavior, INT pin function, and
+ * active level polarity.
+ */
 typedef union
 {
   struct
@@ -154,7 +224,12 @@ typedef union
   uint8_t u;                                            /*!< Type used for byte access */
 } xensiv_pasco2_interrupt_config_t;
 
-/** Structure of the sensor's measurement status register (MEAS_STS) */
+/**
+ * @brief Measurement status register fields for the PASCO2 sensor.
+ *
+ * The MEAS_STS register indicates whether measurements are ready, if an alarm
+ * threshold was violated, and whether the INT pin is currently asserted.
+ */
 typedef union
 {
   struct
@@ -168,81 +243,233 @@ typedef union
   uint8_t u;                                            /*!< Type used for byte access */
 } xensiv_pasco2_meas_status_t;
 
+/**
+ * @brief GPIO configuration structure for the PASCO2 INT pin.
+ *
+ * This structure is used to configure the external GPIO pin and interrupt
+ * settings that receive the sensor's INT output.
+ */
+typedef struct
+{
+    GPIO_TypeDef *portName;       /**< GPIO port for the INT pin */
+    GPIO_InitTypeDef *gpioInit;    /**< Pointer to HAL GPIO initialization data */
+    uint8_t IRQ_Num;              /**< External interrupt number for the INT pin */
+    uint8_t IRQ_Priority;         /**< Interrupt priority for the INT pin */
+} PASCO2_INT_PIN_GPIO_cfg_t;
 
-/** Initialize PASCO2 device context for I2C communication. */
-HAL_StatusTypeDef PASCO2_I2C_Init(PASCO2 *dev,I2C_HandleTypeDef *i2cHandler);
+/**
+ * @brief Initialize the PASCO2 device context for I2C communication.
+ *
+ * @param dev Sensor device context to initialize.
+ * @param i2cHandler Pointer to the HAL I2C handle used by the sensor.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_I2C_Init(PASCO2 *dev, I2C_HandleTypeDef *i2cHandler);
 
-/** Check sensor communication and read product ID register. */
-HAL_StatusTypeDef  PASCO2_Available(const PASCO2 *dev,uint8_t *data);
+/**
+ * @brief Check if data is available from the PASCO2 sensor.
+ *
+ * @param dev Sensor device context.
+ * @param data Pointer to a byte where availability status is stored.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Available(const PASCO2 *dev, uint8_t *data);
 
-/** Read CO2 concentration (ppm) if data-ready is set. */
-HAL_StatusTypeDef PASCO2_ppm(PASCO2 *dev);
-/** Read CO2 concentration (ppm) using a 2-byte register read. */
-HAL_StatusTypeDef PASCO2_ppm2(PASCO2 *dev);
+/**
+ * @brief Read the latest CO2 concentration level from the sensor.
+ *
+ * @param dev Sensor device context.
+ * @param value Pointer to a 16-bit word where CO2 ppm is returned.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Get_CO2_Levels(PASCO2 *dev, uint16_t *value);
 
-/** Read one 8-bit register from sensor. */
-HAL_StatusTypeDef PASCO2_Get_Reg(const PASCO2 *dev,uint8_t reg,uint8_t *data);
+/**
+ * @brief Read a single register from the PASCO2 sensor.
+ *
+ * @param dev Sensor device context.
+ * @param reg Register address to read.
+ * @param data Pointer to the target byte for the register value.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Get_Reg(const PASCO2 *dev, uint8_t reg, uint8_t *data);
 
-/** Write one 8-bit register to sensor. */
-HAL_StatusTypeDef PASCO2_Set_Reg(const PASCO2 *dev,uint8_t reg,uint8_t *data);
+/**
+ * @brief Write a single register on the PASCO2 sensor.
+ *
+ * @param dev Sensor device context.
+ * @param reg Register address to write.
+ * @param data Pointer to the byte containing the new register value.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Set_Reg(const PASCO2 *dev, uint8_t reg, uint8_t *data);
 
-/** Read two consecutive 8-bit registers from sensor. */
-HAL_StatusTypeDef PASCO2_Get_Regs(const PASCO2 *dev,uint8_t reg,uint8_t *data);
+/**
+ * @brief Read multiple bytes starting at the specified register.
+ *
+ * @param dev Sensor device context.
+ * @param reg Starting register address.
+ * @param data Pointer to the buffer to receive the register data.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Get_Regs(const PASCO2 *dev, uint8_t reg, uint8_t *data);
 
-/** Write two consecutive 8-bit registers to sensor. */
-HAL_StatusTypeDef PASCO2_Set_Regs(const PASCO2 *dev,uint8_t reg,uint8_t *data);
+/**
+ * @brief Write multiple bytes starting at the specified register.
+ *
+ * @param dev Sensor device context.
+ * @param reg Starting register address.
+ * @param data Pointer to the buffer containing data to write.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Set_Regs(const PASCO2 *dev, uint8_t reg, uint8_t *data);
 
-/** Write a reset/control command into SENS_RST register. */
-HAL_StatusTypeDef PASCO2_Reset(const PASCO2 *dev,xensiv_pasco2_cmd_t cmd);
+/**
+ * @brief Issue a device command to the PASCO2 sensor.
+ *
+ * @param dev Sensor device context.
+ * @param cmd Command code from @ref xensiv_pasco2_cmd_t.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Reset(const PASCO2 *dev, xensiv_pasco2_cmd_t cmd);
 
-/** Perform communication test and basic sensor readiness checks. */
+/**
+ * @brief Perform basic sensor initialization.
+ *
+ * @param dev Sensor device context.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Sensor_init(const PASCO2 *dev);
 
-/** Read measurement configuration register. */
+/**
+ * @brief Read the measurement configuration register.
+ *
+ * @param dev Sensor device context.
+ * @param meas_config Pointer to the configuration struct to populate.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Get_Measurement_Config(const PASCO2 *dev, xensiv_pasco2_measurement_config_t *meas_config);
 
-/** Write measurement configuration register. */
+/**
+ * @brief Configure the measurement mode of the sensor.
+ *
+ * @param dev Sensor device context.
+ * @param meas_config Pointer to the configuration struct to write.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Set_Measurement_Config(const PASCO2 *dev, xensiv_pasco2_measurement_config_t *meas_config);
 
-/** Set pressure reference value used for compensation. */
-HAL_StatusTypeDef PASCO2_Set_Pressure_ref(const PASCO2 *dev,uint16_t *val);
+/**
+ * @brief Write the reference pressure value used by the sensor.
+ *
+ * @param dev Sensor device context.
+ * @param val Pointer to the 16-bit pressure reference value.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Set_Pressure_ref(const PASCO2 *dev, uint16_t *val);
 
-/** Get pressure reference value used for compensation. */
-HAL_StatusTypeDef PASCO2_Get_Pressure_ref(const PASCO2 *dev,uint16_t *val);
+/**
+ * @brief Read the sensor's reference pressure value.
+ *
+ * @param dev Sensor device context.
+ * @param val Pointer to the 16-bit pressure value to receive.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Get_Pressure_ref(const PASCO2 *dev, uint16_t *val);
 
-/** Read measurement status register. */
-HAL_StatusTypeDef PASCO2_Get_MeasuremetnStatus(const PASCO2 *dev,uint8_t *val);
+/**
+ * @brief Read measurement status bits from the sensor.
+ *
+ * @param dev Sensor device context.
+ * @param val Pointer to the status structure to populate.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Get_MeasurementStatus(const PASCO2 *dev, xensiv_pasco2_meas_status_t *val);
 
-/** Write measurement status register (clear/latch bits). */
-HAL_StatusTypeDef PASCO2_Set_MeasuremetnStatus(const PASCO2 *dev,uint8_t *val);
+/**
+ * @brief Write measurement status bits to the sensor.
+ *
+ * @param dev Sensor device context.
+ * @param val Pointer to the status structure to write.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Set_MeasurementStatus(const PASCO2 *dev, xensiv_pasco2_meas_status_t *val);
 
-/** Read configured measurement period in seconds. */
+/**
+ * @brief Read the configured continuous measurement rate.
+ *
+ * @param dev Sensor device context.
+ * @param meas_rate Pointer to the returned measurement interval in seconds.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Get_Measurement_Rate(const PASCO2 *dev, uint16_t *meas_rate);
 
-/** Set configured measurement period in seconds. */
+/**
+ * @brief Configure the continuous measurement interval.
+ *
+ * @param dev Sensor device context.
+ * @param meas_rate Measurement interval in seconds (5 to 4095).
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Set_Measurement_Rate(const PASCO2 *dev, uint16_t meas_rate);
 
-/** Start continuous measurement mode with requested period. */
-HAL_StatusTypeDef PASCO2_Start_ContinousMode(const PASCO2 *dev,uint16_t meas_rate);
+/**
+ * @brief Start the sensor in continuous measurement mode.
+ *
+ * @param dev Sensor device context.
+ * @param meas_rate Measurement interval in seconds (5 to 4095).
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_Start_ContinousMode(const PASCO2 *dev, uint16_t meas_rate);
 
-/** Trigger one single-shot CO2 measurement sequence. */
+/**
+ * @brief Start a single-shot CO2 measurement.
+ *
+ * @param dev Sensor device context.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_Start_SingleShotMode(const PASCO2 *dev);
 
-/** Stop measurements by forcing idle operating mode. */
+/**
+ * @brief Stop the ongoing measurement sequence.
+ *
+ * @param dev Sensor device context.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_StopMeasure(const PASCO2 *dev);
 
-/** Clear forced-compensation context in sensor. */
+/**
+ * @brief Clear forced compensation state on the sensor.
+ *
+ * @param dev Sensor device context.
+ * @return HAL status code, HAL_OK on success.
+ */
 HAL_StatusTypeDef PASCO2_ClearForecedCompensation(const PASCO2 *dev);
 
-/** Execute forced compensation using known reference CO2 value. */
-HAL_StatusTypeDef PASCO2_PerformForecedCompensation(const PASCO2 *dev,uint16_t val);
+/**
+ * @brief Perform a forced compensation procedure.
+ *
+ * @param dev Sensor device context.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_PerformForecedCompensation(const PASCO2 *dev);
 
-/** Send generic command to SENS_RST register. */
-HAL_StatusTypeDef PASCO2_cmd(const PASCO2 * dev, xensiv_pasco2_cmd_t cmd);
-
-/** Convert endianess for 16-bit register values. */
+/**
+ * @brief Reverse the byte order of a 16-bit value.
+ *
+ * @param val 16-bit value to swap.
+ * @return Byte-swapped 16-bit value.
+ */
 uint16_t reverse_ByteOrder(uint16_t val);
 
-/** Set calibration reference value for forced compensation path. */
-HAL_StatusTypeDef PASCO2_Set_Calibration_ref(const PASCO2 *dev,uint16_t val);
+/**
+ * @brief Configure the INT pin GPIO and interrupt settings.
+ *
+ * @param dev Sensor device context.
+ * @param gpio_int_cfg_s Pointer to the INT pin GPIO configuration.
+ * @param pasco2_int_cfg_s Pointer to the sensor interrupt function configuration.
+ * @return HAL status code, HAL_OK on success.
+ */
+HAL_StatusTypeDef PASCO2_int_cfg(const PASCO2 *dev, const PASCO2_INT_PIN_GPIO_cfg_t *gpio_int_cfg_s, const xensiv_pasco2_interrupt_config_t *pasco2_int_cfg_s);
+
 #endif /* INC_PASCO2_H_ */
