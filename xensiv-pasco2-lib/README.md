@@ -8,16 +8,20 @@ This library provides a driver for the Infineon XENSIV PAS CO2 sensor.
 - `Inc/xensiv_pasco2_regs.h`: Register map definitions
 - `Src/pasco2.c`: I2C driver implementation
 
-## Quick Start (I2C)
 
-1. Add `Inc` to your compiler include paths.
-2. Include `pasco2.h` in your application code.
-3. Ensure your STM32 I2C peripheral is initialized before sensor init.
-4. Initialize sensor context with `PASCO2_I2C_Init`.
-5. Run `PASCO2_Sensor_init` once after power-up.
-6. Start continuous mode using `PASCO2_Start_ContinousMode`.
-7. Periodically call `PASCO2_ppm` or `PASCO2_ppm2` and read `dev.co2ppm`.
+## STM32CubeIDE Setup
 
+1. Open your STM32CubeIDE project.
+2. Inside the project, create a folder named `UserDefLib`.
+3. Under `UserDefLib`, create two subfolders: `Inc` and `Src`.
+4. Copy `pasco2.h` and `xensiv_pasco2_regs.h` into `UserDefLib/Inc`.
+5. Copy `pasco2.c` into `UserDefLib/Src`.
+6. Right-click the project and select `Properties`.
+7. In `C/C++ General`, go to `Paths and Symbols`.
+   - Under the `Includes` tab, add the path to `UserDefLib/Inc`.
+   - Under the `Source Location` tab, add the path to `UserDefLib/Src`.
+8. Click `Apply` and then `OK`.
+9. Include `pasco2.h` in your application source file (for example `main.c`) to use the PASCO2 driver.
 ## Notes
 
 - Sensor I2C address is `0x28` (7-bit), defined as `XENSIV_PASCO2_DEV_ADDR`.
@@ -25,6 +29,10 @@ This library provides a driver for the Infineon XENSIV PAS CO2 sensor.
 - Valid measurement rate range in this driver is defined by:
   - `XENSIV_PASCO2_MEAS_RATE_MIN` = 5
   - `XENSIV_PASCO2_MEAS_RATE_MAX` = 4095
+
+## Examples
+
+I will add in future
 
 ## License
 
